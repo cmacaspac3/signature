@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Email Signature Generator</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 30px; }
+    .container { background: white; padding: 20px; border-radius: 8px; max-width: 720px; margin: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    input, button { width: 100%; padding: 10px; margin: 8px 0; font-size: 16px; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+    .copy-btn { background-color: #007bff; color: white; border: none; cursor: pointer; flex: 1; }
+    .copy-btn:hover { background-color: #0056b3; }
+    .file-inputs { margin-top: 10px; }
+    #signaturePreview { border-top: 2px solid #ccc; margin-top: 20px; padding-top: 20px; }
+    #gifPreviewContainer { margin-top: 15px; text-align: center; }
+    #gifProgressBar { width: 100%; background-color: #eee; border-radius: 5px; overflow: hidden; margin-top: 10px; display: none; }
+    #gifProgress { width: 0; height: 10px; background-color: #007bff; }
+    .info-row { display: flex; align-items: center; font-size: 14px; color: #000; line-height: 1.6; }
+    .info-icon { width: 16px; height: 16px; vertical-align: middle; display: inline-block; margin-right: 6px; }
+    .info-icon-wrap { display: flex; align-items: center; justify-content: center; width: 24px; }
+  </style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.min.js"></script>
+<script>
+let uploadedImages = [null, null, null];
+let gifDataUrl = '';
+const icons = {
+  phone: 'https://img.icons8.com/ios-filled/50/000000/phone.png',
+  email: 'https://img.icons8.com/ios-filled/50/000000/email.png',
+  website: 'https://img.icons8.com/ios-filled/50/000000/domain.png',
+  location: 'https://img.icons8.com/ios-filled/50/000000/marker.png'
+};
+const inlineWorkerScript = URL.createObjectURL(new Blob([
+  "importScripts('https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js');"
+], { type: 'application/javascript' }));
+
+function storeImageFile(file, index) {
+  if (!file || file.size > 200 * 1024) {
+    alert("File too large or invalid");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.src = e.target.result;
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 150; canvas.height = 150;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, 150, 150);
+      const ratio = Math.min(150 / img.width, 150 / img.height);
+      const newWidth = img.width * ratio, newHeight = img.height * ratio;
+      const offsetX = (150 - newWidth) / 2, offsetY = (150 - newHeight) / 2;
+      ctx.drawImage(img, offsetX, offsetY, newWidth, newHeight);
+      uploadedImages[index] = canvas.toDataURL('image/png');
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function generateGIF() {
+  const fadeSteps = 10;
+  const delay = 2000;
+  const useFade = document.getElementById('enableFade').checked;
+
+  const gif = new GIF({
+    workers: 2,
+    quality: 10,
+    width: 150,
+    height: 150,
+    workerScript: inlineWorkerScript
+  });
+
+  const load = src => new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = src;
+  });
+
+  Promise.all(uploadedImages.filter(Boolean).map(load)).then(images => {
+    for (let i = 0; i < images.length; i++) {
+      gif.addFrame(images[i], { delay });
+      if (useFade) {
+        const next = images[(i + 1) % images.length];
+        for (let s = 1; s <= fadeSteps; s++) {
+          const canvas = document.createElement('canvas');
+          canvas.width = 150; canvas.height = 150;
+          const ctx = canvas.getContext('2d');
+          ctx.globalAlpha = 1; ctx.drawImage(images[i], 0, 0, 150, 150);
+          ctx.globalAlpha = s / fadeSteps; ctx.drawImage(next, 0, 0, 150, 150);
+          gif.addFrame(canvas, { delay: 100 });
+        }
+      }
+    }
+
+    gif.on('finished', blob => {
+      const reader = new FileReader();
+      reader.onloadend = function() {
+        gifDataUrl = reader.result;
+        document.getElementById('gifPreviewContainer').innerHTML =
+          '<img src="' + gifDataUrl + '" width="100" style="border-radius:10px">';
+        document.getElementById('downloadGifBtn').href = gifDataUrl;
+        document.getElementById('downloadGifBtn').href = gifDataUrl;
+document.getElementById('downloadGifBtn').href = gifDataUrl;
+document.getElementById('downloadGifBtn').style.display = 'inline-block';
+document.getElementById('generateSignatureButton').disabled = false;
+document.getElementById('generateSignatureButton').disabled = false;
+        document.getElementById('generateSignatureButton').disabled = false;
+      };
+      reader.readAsDataURL(blob);
+    });
+    gif.render();
+  });
+}
+
+function generateSignature() {
+  const get = id => document.getElementById(id).value || '';
+  const html = `
+  <table style="font-family: Arial; color: #000;">
+    <tr>
+      <td rowspan="6" style="padding-right:15px; vertical-align: top;">
+        ${document.getElementById("gifUrl").value ? `<img src="${document.getElementById("gifUrl").value}" width="100" style="border-radius:10px">` : ''}
+      </td>
+      <td style="font-size:18px;font-weight:bold">${get('fullName')}</td>
+    </tr>
+    <tr><td style="color:#555">${get('title')} at ${get('company')}</td></tr>
+    <tr><td class="info-row"><img class="info-icon" src="${icons.phone}" />${get('phone')}</td></tr>
+    <tr><td class="info-row"><img class="info-icon" src="${icons.email}" />${get('email')}</td></tr>
+    <tr><td class="info-row"><img class="info-icon" src="${icons.website}" />${get('website')}</td></tr>
+    <tr><td class="info-row"><img class="info-icon" src="${icons.location}" />${get('address')}</td></tr>
+  </table>`;
+  document.getElementById('signaturePreview').innerHTML = html;
+}
+
+function copyRawHTML() {
+  const el = document.createElement('textarea');
+  el.value = document.getElementById('signaturePreview').innerHTML;
+  document.body.appendChild(el);
+  el.select();
+  document.execCommand('copy');
+  document.body.removeChild(el);
+  alert('Raw HTML copied!');
+}
+
+function copyForGmail() {
+  const range = document.createRange();
+  range.selectNode(document.getElementById('signaturePreview'));
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  document.execCommand('copy');
+  sel.removeAllRanges();
+  alert('Signature copied for Gmail!');
+}
+</script>
+
+<div class="container">
+  <h2>Email Signature Generator</h2>
+  <input type="text" id="fullName" placeholder="Full Name" />
+  <input type="text" id="title" placeholder="Job Title" />
+  <input type="text" id="company" placeholder="Company Name" />
+  <input type="text" id="phone" placeholder="Phone Number" />
+  <input type="email" id="email" placeholder="Email Address" />
+  <input type="text" id="website" placeholder="Website URL" />
+  <input type="text" id="address" placeholder="Address" />
+  <div class="transition-settings" style="display:none;">
+    <input type="hidden" id="enableFade" checked disabled />
+    <input type="hidden" id="frameDelay" value="2000" />
+    <input type="hidden" id="fadeSteps" value="10" />
+  </div>
+  <div class="file-inputs">
+    <label>Upload up to 3 logo images:</label><br>
+    <input type="file" accept="image/*" onchange="storeImageFile(this.files[0], 0)"><br>
+    <input type="file" accept="image/*" onchange="storeImageFile(this.files[0], 1)"><br>
+    <input type="file" accept="image/*" onchange="storeImageFile(this.files[0], 2)"><br>
+  </div>
+  <div class="button-row">
+    <button onclick="generateGIF()">Generate GIF Logo</button>
+  </div>
+
+  <div id="gifPreviewContainer"></div>
+  <div style="text-align:center; margin-top:10px;">
+    <a id="downloadGifBtn" href="#" download="animated-logo.gif" style="display:none;padding:10px 20px;background:#28a745;color:#fff;border-radius:5px;text-decoration:none">Download GIF</a>
+  </div>
+
+  
+  <div style="margin-top: 20px;">
+    <label for="gifUrl"><strong>Enter hosted GIF URL (e.g., from GitHub or Imgur):</strong></label><br>
+    <input type="text" id="gifUrl" placeholder="https://example.com/animated-logo.gif" style="width: 100%; padding: 8px;" />
+  </div>
+
+
+  <div class="button-row">
+    <button id="generateSignatureButton" onclick="generateSignature()" disabled>Generate Signature</button>
+  </div>
+  <div id="gifPreviewContainer"></div>
+  <div style="text-align:center; margin-top:10px;">
+    <a id="downloadGifBtn" href="#" download="animated-logo.gif" style="display:none;padding:10px 20px;background:#28a745;color:#fff;border-radius:5px;text-decoration:none">Download GIF</a>
+  </div>
+  <div id="signaturePreview" style="margin-top: 20px;"></div>
+  <div class="button-row">
+    <button class="copy-btn" onclick="copyRawHTML()">Copy HTML Code</button>
+    <button class="copy-btn" onclick="copyForGmail()">Copy for Gmail</button>
+  </div>
+</div>
+</body>
+</html>

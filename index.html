@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Email Signature Generator</title>
+  <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+    .container { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 700px; margin: auto; }
+    input, button { width: 100%; padding: 10px; margin: 10px 0; }
+    #gifPreviewContainer img { border-radius: 10px; width: 100px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>Email Signature Generator</h2>
+  <input id="fullName" placeholder="Full Name">
+  <input id="title" placeholder="Job Title">
+  <input id="company" placeholder="Company">
+  <input id="phone" placeholder="Phone">
+  <input id="email" placeholder="Email">
+  <input id="website" placeholder="Website">
+  <input id="address" placeholder="Address">
+  <p>Upload up to 3 images:</p>
+  <input type="file" onchange="storeImageFile(this.files[0], 0)">
+  <input type="file" onchange="storeImageFile(this.files[0], 1)">
+  <input type="file" onchange="storeImageFile(this.files[0], 2)">
+  <button onclick="generateGIF()">Generate GIF</button>
+  <button onclick="generateSignature()">Generate Signature</button>
+  <div id="gifPreviewContainer"></div>
+  <div id="signaturePreview" style="margin-top:20px;"></div>
+</div>
+<script>
+let uploadedImages = [null, null, null];
+let gifDataUrl = '';
+function storeImageFile(file, index) {
+  if (!file || file.size > 200000) return alert('Image too large');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.src = e.target.result;
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 150; canvas.height = 150;
+      const ctx = canvas.getContext('2d');
+      const ratio = Math.min(150 / img.width, 150 / img.height);
+      const nw = img.width * ratio;
+      const nh = img.height * ratio;
+      ctx.drawImage(img, (150-nw)/2, (150-nh)/2, nw, nh);
+      uploadedImages[index] = canvas.toDataURL();
+    }
+  };
+  reader.readAsDataURL(file);
+}
+function generateGIF() {
+  const gif = new GIF({
+    workers: 2,
+    quality: 10,
+    width: 150,
+    height: 150,
+    workerScript: 'js/gif.worker.js'
+  });
+  const imgs = uploadedImages.filter(Boolean);
+  if (imgs.length < 2) return alert('Please upload at least 2 images.');
+  const load = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; });
+  Promise.all(imgs.map(load)).then(images => {
+    for (let i = 0; i < images.length; i++) {
+      gif.addFrame(images[i], { delay: 2000 });
+      const next = images[(i + 1) % images.length];
+      for (let s = 1; s <= 10; s++) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 150; canvas.height = 150;
+        const ctx = canvas.getContext('2d');
+        ctx.globalAlpha = 1; ctx.drawImage(images[i], 0, 0, 150, 150);
+        ctx.globalAlpha = s / 10; ctx.drawImage(next, 0, 0, 150, 150);
+        gif.addFrame(canvas, { delay: 100 });
+      }
+    }
+    gif.on('finished', blob => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        gifDataUrl = reader.result;
+        document.getElementById('gifPreviewContainer').innerHTML = '<img src="' + gifDataUrl + '">';
+      };
+      reader.readAsDataURL(blob);
+    });
+    gif.render();
+  });
+}
+function generateSignature() {
+  const get = id => document.getElementById(id).value;
+  const html = \`
+    <table style='font-family:Arial;'>
+      <tr>
+        <td rowspan='6' style='padding-right:10px;'>\${gifDataUrl ? '<img src="'+gifDataUrl+'" width="100">' : ''}</td>
+        <td><strong>\${get('fullName')}</strong></td>
+      </tr>
+      <tr><td>\${get('title')} at \${get('company')}</td></tr>
+      <tr><td>\${get('phone')}</td></tr>
+      <tr><td>\${get('email')}</td></tr>
+      <tr><td>\${get('website')}</td></tr>
+      <tr><td>\${get('address')}</td></tr>
+    </table>\`;
+  document.getElementById('signaturePreview').innerHTML = html;
+}
+</script>
+</body>
+</html>

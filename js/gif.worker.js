@@ -1,1 +1,0 @@
-importScripts('https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js');
